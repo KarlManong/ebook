@@ -33,7 +33,7 @@ def search_page(query=None):
             storage(query, s)
             BookCatcher(s).start()
             return str(s)
-        return ""
+        return "empty"
     return ""
 
 
@@ -80,12 +80,13 @@ def search(set_, query_str, page=1):
     if response.status_code == 200:
         result = response.json()
         if result[ERROR_STR] == "0":
-            for book in result["Books"]:
-                set_.add(book["ID"])
             total = int(result["Total"])
-            if total > page + 10:
-                page += 10
-                search(set_, query_str, page)
+            if total != 0:
+                for book in result["Books"]:
+                    set_.add(book["ID"])
+                if total > page + 10:
+                    page += 10
+                    search(set_, query_str, page)
         else:
             print(result[ERROR_STR])
     else:
@@ -223,6 +224,7 @@ def get_book(book_id, create=False):
             db.session.commit()
             return book
     return None
+
 
 def update_book(book):
     from basemain import db
