@@ -237,6 +237,6 @@ def download_files():
 
     books = models.BookModel.query.filter(
         or_(models.BookModel.file_path == None, models.BookModel.file_path == "")).all()
-    book_ids = [book.id for book in books]
+    book_ids = [book.eBook_id for book in books]
     BookCatcher(book_ids).start()
     return str(book_ids)
