@@ -97,7 +97,7 @@ def search(set_, query_str, page=1):
 def books(id_=None):
     if id_:
         if fetch(id_):
-            return id_
+            return str(id_)
     return "error", 400
 
 
