@@ -135,7 +135,7 @@ def filename_fix_existing(filename):
 
 
 def download_file(url_):
-    with closing(requests.get(url_, stream=True, headers={"referer": "	http://it-ebooks.info/book/386/",
+    with closing(requests.get(url_, stream=True, headers={"referer": "	http://www.it-ebooks.info/book/531/",
                                                           "User-Agent": USER_AGENT})) as response:
         if response.status_code == 200:
             file_name = get_file_name(response)
@@ -156,8 +156,6 @@ def download_file(url_):
                 if os.path.getsize(file_path) == file_size:
                     app.logger.info("下载%s完成", file_name)
                     return file_path
-                else:
-                    os.unlink(file_path)
 
 
 def download_dir():
@@ -205,7 +203,7 @@ def fetch(book_id):
                 update_book(book)
                 return True
             else:
-                app.logger.error(threading.currentThread().getName() + "下载失败" + str(book.title))
+                app.logger.error(threading.currentThread().getName() + "下载失败" + str(book_id))
     return False
 
 
