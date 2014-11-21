@@ -13,7 +13,7 @@ USER_AGENT = "Mozilla/5.0 (Windows NT 6.1; WOW64; rv:33.0) Gecko/20100101 Firefo
 BASE_URI = "http://it-ebooks-api.info/v1/"
 ERROR_STR = "Error"
 
-semaphore = threading.BoundedSemaphore()
+THREAD_NUM = 5
 
 
 @app.route('/')
@@ -31,7 +31,7 @@ def search_page(query=None):
         search(s, query)
         if s:
             storage(query, s)
-            BookCatcher(s).start()
+            mt_download(s)
             return str(s)
         return "empty"
     return ""
@@ -61,17 +61,16 @@ def storage(query, book_ids):
 
 
 class BookCatcher(threading.Thread):
-    def __init__(self, book_ids, *args, **kwargs):
+    def __init__(self, *args, **kwargs):
         threading.Thread.__init__(self, daemon=True, *args, **kwargs)
-        self.book_ids = book_ids
+        self.book_ids = []
 
     def run(self):
-        semaphore.acquire(timeout=100)
-        app.logger.info(threading.currentThread().getName() + "开始运行， 一共%d本书", len(self.book_ids))
         for book_id in self.book_ids:
             fetch(book_id)
-        app.logger.info(threading.currentThread().getName() + "运行结束")
-        semaphore.release()
+
+    def add_book(self, book_id):
+        self.book_ids.append(book_id)
 
 
 def search(set_, query_str, page=1):
@@ -97,6 +96,9 @@ def search(set_, query_str, page=1):
 @app.route("/books/<int:id_>")
 def books(id_=None):
     if id_:
+        book = get_book(id_)
+        if book and book.file_path and os.path.exists(book.file_path):
+            return str(id_)
         if fetch(id_):
             return str(id_)
     return "error", 400
@@ -186,15 +188,13 @@ def get_file_name(response):
 
 def fetch(book_id):
     assert book_id is not None
-    book = get_book(book_id)
-    if book.file_path and os.path.exists(book.file_path):
-        return True
-    response = requests.get(BASE_URI + "/book/" + str(book.eBook_id))
+    response = requests.get(BASE_URI + "/book/" + str(book_id))
     if response.status_code == 200:
         result = response.json()
         if result[ERROR_STR] == "0":
             file_path = download_file(result["Download"])
             if file_path:
+                book = get_book(book_id)
                 book.title = result["Title"]
                 book.sub_title = result["SubTitle"]
                 book.image_path = result["Image"]
@@ -238,5 +238,30 @@ def download_files():
     books = models.BookModel.query.filter(
         or_(models.BookModel.file_path == None, models.BookModel.file_path == "")).all()
     book_ids = [book.eBook_id for book in books]
-    BookCatcher(book_ids).start()
+    mt_download(book_ids, False)
     return str(book_ids)
+
+
+def mt_download(book_ids, check_exists=True):
+    app.logger.info("开始运行， 一共%d本书", len(book_ids))
+    bc_group = []
+    for _ in range(THREAD_NUM):
+        bc_group.append(BookCatcher())
+    i = 0
+    for book_id in book_ids:
+        if check_exists:
+            book = get_book(book_id)
+            if book and book.file_path and os.path.exists(book.file_path):
+                continue
+            else:
+                bc_group[i].add_book(book_id)
+        else:
+            bc_group[i].add_book(book_id)
+
+        i += 1
+        if i >= len(bc_group):
+            i = 0
+
+    for bc in bc_group:
+        if bc.book_ids:
+            bc.start()
